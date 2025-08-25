@@ -1,4 +1,4 @@
-
+import time
 from django.db import connection
 from django.http import HttpResponse
 from store.models import Product,OrderItem,Customer,Collection,Order
@@ -9,10 +9,10 @@ from django.db.models.functions import Concat
 from django.db.models import Func,F,Value
 from django.contrib.contenttypes.models import ContentType
 from rest_framework.response import Response
-from .models import Product, Collection,Review ,Cart ,CartItem
-from .serializer import ProductSerializer,Collectionserializer,Reviewserializer ,\
+from .models import Product, Collection, ProductImage,Review ,Cart ,CartItem
+from .serializer import AddOrderSerializer, ProductSerializer,Collectionserializer,Reviewserializer ,\
 CartSerializer,CartItemSerializer,AddItemserializer,UpdateItemSerializer,\
-CustomerSerializer,CustomerSerializerGETandCREATE,OrderSerializer
+CustomerSerializer,CustomerSerializerGETandCREATE,OrderSerializer,ProductImagesSerializer
 from rest_framework import status
 from rest_framework.viewsets import ModelViewSet , GenericViewSet
 from rest_framework.permissions import  IsAdminUser,IsAuthenticated,AllowAny,BasePermission
@@ -25,14 +25,36 @@ from .pagination import PaginaionNumber
 ObjectDoesNotExist
 from rest_framework.decorators import action
 from store.permissions import IsAdminOrReadonly, ViewCustomerHistoryPermission
-
-
-
+from rest_framework_simplejwt.views import TokenObtainPairView
+from django.contrib.auth import get_user_model,authenticate
+from django.core.mail import send_mail,BadHeaderError,mail_admins,EmailMessage
+from django.core.cache import cache
+from django.views.decorators.cache import cache_page #for caching a function 
+from django.utils.decorators import method_decorator #for caching a class 
 
 class ProductModelView(ModelViewSet):
     serializer_class = ProductSerializer
-    queryset = Product.objects.all()
-
+    queryset = Product.objects.prefetch_related('images').all()
+    def get_queryset(self):
+          key = 'product_list_cache'
+         #  one of the parameters that we need setting cache is label. and we save the label under the name of product_name_cache
+          cached_queryset = cache.get(key)
+          if cached_queryset is None: 
+            # now you're checkingif you have such a label from before and if you don't have it you make it.
+            time.sleep(2)  # شبیه سازی تاخیر
+            queryset = Product.objects.prefetch_related('images').all() #you determine the data you wanna set in cache
+            ids = list(queryset.values_list('id', flat=True)) # now we have too much data here so we are gonna save the IDs only.
+            cache.set(key, ids, timeout=60* 5) # to set sthh in cache we need three parameters: 1.label 2.data(here we set the IDs only) 3.the amount of time you wanna keep data in cache
+            return queryset
+          else:
+            # if we have the label in cache already then we need to set a filter just to read it from the memory
+            return Product.objects.filter(id__in=cached_queryset).prefetch_related('images')
+   #  try:
+   #     send_mail('Products','Products were shown','set@gmail.com',['stranger@gmail.com'])
+   #    # message= EmailMessage('Products','Products were shown','set@gmail.com',['stranger@gmail.com'])
+   #    # message.attach('store/static/')
+   #  except BadHeaderError:
+   #     pass  #this is a fake SMTP and you can use the real one if you pay. so far we have the procedure of excecuting SMTP4dev to see the complete part check out the setting as well
     filter_backends=[DjangoFilterBackend , SearchFilter,OrderingFilter]
     filterset_class = ProductFilter
     pagination_class=PaginaionNumber
@@ -109,10 +131,11 @@ class CollectionModelView(ModelViewSet):
 #      serializers.save()
 #      return Response(serializers.data)
   
-
+# @method_decorator(cache_page(5*60)) => here we set this whole class in cache
 class ReviewModelViewSet(ModelViewSet):
    queryset = Review.objects.none()
    serializer_class = Reviewserializer
+   @cache_page(5*60) #here we set this function into a cache 
    def get_queryset(self):
       return Review.objects.filter(product_id = self.kwargs['product_pk'])
   
@@ -161,6 +184,7 @@ class CustomerModelViewSet(ModelViewSet):
    serializer_class = CustomerSerializer
    permission_classes = [IsAuthenticated]
       
+
    @action(detail=True, permission_classes=[ViewCustomerHistoryPermission])
    def history(self, request, pk):
       return Response('ok')
@@ -182,22 +206,42 @@ class CustomerModelViewSet(ModelViewSet):
          return Response(serializer.data)
       
 class orderModelViewSet(ModelViewSet):
-   serializer_class = OrderSerializer
-   permission_classes=[IsAuthenticated]
-   
+    permission_classes = [IsAuthenticated]
+    serializer_class = OrderSerializer
+    http_method_names=['get','patch','head','delete','post']
+
+    def get_serializer_context(self):
+        return {'user_id': self.request.user.id}
+
+
+    def get_queryset(self):
+      #   user = self.request.user
+      #   if user.is_staff:
+            return Order.objects.all()
+      #   customer = Customer.objects.only('id').get(user_id=user.id)
+      #   return Order.objects.filter(customer_id=customer.id)
+
+    def create(self, request, *args, **kwargs):
+        serializer = AddOrderSerializer(data=request.data , context={'user_id': self.request.user.id})
+        serializer.is_valid(raise_exception=True)
+        order=serializer.save()
+        serializer_output= OrderSerializer(order, context=self.get_serializer_context())
+        return Response(serializer_output.data)
+    
+    def get_serializer_class(self):
+        if self.request.method == 'POST':
+            return AddOrderSerializer
+        return OrderSerializer
+
+class ProductImagesModelViewSet(ModelViewSet):
+   serializer_class= ProductImagesSerializer
+
+   def get_serializer_context(self):
+      return {'product_pk': self.kwargs['product_pk']}
+
    def get_queryset(self):
-      user = self.request.user
-      if user.is_staff:
-         return Order.objects.all()
-      Customer_id  = Customer.objects.only('id').get(user_id= user.id)
-      return Order.objects.filter(customer_id = Customer_id)
-
-
-
-
-   
-
-
+      return ProductImage.objects.filter(pk=self.kwargs['product_pk']).all()
+       
 
 
 

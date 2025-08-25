@@ -1,9 +1,11 @@
 from django.db import models
-from django.core.validators import MinValueValidator
+from django.core.validators import MinValueValidator,FileExtensionValidator
 from django.core.validators import validate_email
 from django.core.exceptions import ValidationError
 from uuid import uuid4
 from django.conf import settings
+from .validators import validate_image_size
+
 
 
 class Promotion(models.Model):
@@ -41,6 +43,15 @@ class Product(models.Model):
         permissions=[
             ('view history' , 'can view history')
         ]
+
+class ProductImage(models.Model):
+    product = models.ForeignKey(Product, on_delete=models.CASCADE, related_name='images')
+    image= models.ImageField(upload_to='store/images',\
+                             validators=[validate_image_size]
+                             ) # we can simply create validators ourselves. check out validators.py
+    # without creating a validator to only validate pdfs we don't need to define a function, we can use this:FileExtensionValidator. and this is how we use it
+    # validators=[FileExtensionValidator(allow_extensions=['pdf])]
+    # we can use FileField for images as well the difference is that if we want to change the images' sizes we can simple do that throughout ImageFile and pillow library
 
 class Customer(models.Model):
     MEMBERSHIP_B = 'B'

@@ -2,10 +2,12 @@ from django.contrib import admin, messages
 from . import models
 from django.db.models import Count
 from django.utils.html import format_html
-from urllib.parse import urlencode
+from urllib.parse import urlencode 
+from django.utils.html import format_html
 from django.urls import reverse
 from django.contrib.contenttypes.admin import GenericTabularInline
 from tag.models import TaggedItem
+from .models import ProductImage
 
 class inventory_management(admin.SimpleListFilter):
     title='inventory'
@@ -42,11 +44,20 @@ class CollectionAdmin(admin.ModelAdmin):
         return super().get_queryset(request).annotate(
             product_count=Count('products')
         )
-    
+
+class ProductImageInline(admin.TabularInline):
+    model = ProductImage
+    readonly_fields=['thumbnails'] # you need to add the inline to the ProductAdmin class as well 
+
+    def thumbnails(self,instane):
+        if instane.image.name != "":
+            return format_html(f'<img src="{instane.image.url}" class="thumbnail">') # to see how it actually works croll down to   class Media 
+        return ''
 
 @admin.register(models.Product)
 class ProductAdmin(admin.ModelAdmin):
     actions=['clear_inventory']
+    inlines=[ProductImageInline] # to see how we complete it check out store_custom.admin 
     list_display = ['title', 'price', 'inventory_status', 'collection_title']
     list_per_page = 10
     search_fields=['title']
@@ -76,7 +87,10 @@ class ProductAdmin(admin.ModelAdmin):
         f'{updated_count} products were updated successfully',
         messages.ERROR
       )
-
+    class Media: #to see how it actually works check out store.static.style.css
+        css={
+            'all':['style.css']
+        }
 @admin.register(models.Customer)
 class CustomerAdmin(admin.ModelAdmin):
     list_display = ['id','first_name', 'last_name', 'membership', 'customer_order_count']

@@ -12,6 +12,9 @@ https://docs.djangoproject.com/en/4.2/ref/settings/
 
 from datetime import timedelta
 from pathlib import Path
+import os
+# we use this so we can specify the schedule by assigning the day of the week, hour and minute
+from celery.schedules import crontab
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -41,10 +44,10 @@ INSTALLED_APPS = [
     'rest_framework',
     'djoser',
     'django_filters',
-    'store',
+    'store.apps.CustomerConfig',
     'tag',
     'Likes',
-    'store_custom'
+    'store_custom',
 ]
 
 MIDDLEWARE = [
@@ -127,7 +130,11 @@ USE_TZ = True
 # Static files (CSS, JavaScript, Images)
 # https://docs.djangoproject.com/en/4.2/howto/static-files/
 
-STATIC_URL = 'static/'
+STATIC_URL = '/static/'
+STATIC_ROOT=os.path.join(BASE_DIR , 'static')
+
+MEDIA_URL= '/media/'
+MEDIA_ROOT= os.path.join(BASE_DIR , 'media')
 
 # Default primary key field type
 # https://docs.djangoproject.com/en/4.2/ref/settings/#default-auto-field
@@ -159,3 +166,29 @@ DJOSER = {
     }
   }
 
+# EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
+# EMAIL_HODT= 'lodalhost'
+# EMAIL_HOST_USER= ''
+# EMAIL_HOST_PASSWORD=''
+# EMAIL_PORT= 2525
+# DEFAULT_FROM_EMAIL='setateatemal@gmail.com'
+
+# CELERY_BROKER_URL = 'redis://localhost:6379/1'
+# CELERY_BEAT_SCHEDULE={
+#     'notify-customer-every-monday-7-30':{
+#     'task' : 'Likes.tasks.notify_customer',
+#     'schedule': 5,}
+    #  day of week 1=> shows the first day of the week which is monday, at 7:30am
+    # if you set minute=*/15 => every 15 minutes 
+    # 'args':[''] => this gets the inputs of the the function we defined ealier now if you want to add other inputs from the customers or others you should not define it in here
+# }
+
+CACHES = {
+    "default": {
+        "BACKEND": "django_redis.cache.RedisCache",
+        "LOCATION": "redis://127.0.0.1:6379/1",
+        "OPTIONS": {
+            "CLIENT_CLASS": "django_redis.client.DefaultClient",
+        }
+    }
+}
